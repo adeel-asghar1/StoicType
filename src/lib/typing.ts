@@ -33,24 +33,43 @@ export const TEST_PRESETS: TestPreset[] = [
   { id: "100w", label: "100 words", kind: "words", value: 100 },
   { id: "daily", label: "Daily", kind: "daily" },
 ];
-
 export function dailyPassage() {
   const today = new Date();
   const start = new Date(today.getFullYear(), 0, 0).getTime();
   const day = Math.floor((today.getTime() - start) / 86400000);
+
   return PASSAGES[day % PASSAGES.length];
 }
 
+function shuffledPassages() {
+  return [...PASSAGES].sort(() => Math.random() - 0.5);
+}
+
 export function passageForWords(words: number) {
+  const shuffled = shuffledPassages();
+
   let result = "";
-  let index = 0;
-  while (result.trim().split(/\s+/).filter(Boolean).length < words) {
-    result += `${PASSAGES[index % PASSAGES.length]} `;
-    index += 1;
+
+  for (const passage of shuffled) {
+    result += `${passage} `;
+
+    const currentWordCount = result
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean).length;
+
+    if (currentWordCount >= words) {
+      break;
+    }
   }
-  return result.trim().split(/\s+/).slice(0, words).join(" ");
+
+  return result
+    .trim()
+    .split(/\s+/)
+    .slice(0, words)
+    .join(" ");
 }
 
 export function longPassage() {
-  return PASSAGES.join(" ");
+  return shuffledPassages().join(" ");
 }
