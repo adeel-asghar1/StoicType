@@ -1,0 +1,721 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Premium editorial palette — warm ivory, ink, stone, graphite */
+  --color-sidebar: #eeece6;
+  --color-background: #f5f3ee;
+  --color-background-secondary: #ece9e1;
+  --color-surface: #e7e3da;
+  --color-surface-elevated: #faf8f3;
+  --color-border: #d8d3c8;
+  --color-border-strong: #bdb7aa;
+  --color-text-primary: #141412;
+  --color-text-secondary: #5f5d56;
+  --color-text-muted: #8d887d;
+  --color-accent: #11110f;
+  --color-accent-hover: #2a2925;
+  --color-accent-glow: rgba(255, 255, 255, 0.78);
+  --color-success: #2f7d59;
+  --color-warning: #9b7132;
+  --color-error: #a94444;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  padding: 0;
+  margin: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--color-background);
+  color: var(--color-text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: #141412;
+  color: #f5f3ee;
+}
+
+.app-background {
+  background:
+    radial-gradient(70% 55% at 50% 5%, rgba(255, 255, 255, 0.92), transparent 68%),
+    radial-gradient(42% 36% at 90% 52%, rgba(210, 206, 196, 0.28), transparent 72%),
+    radial-gradient(40% 35% at 12% 78%, rgba(225, 221, 211, 0.22), transparent 72%),
+    linear-gradient(135deg, #f7f5f0 0%, #f1eee8 48%, #f6f4ef 100%);
+}
+
+.app-texture {
+  /* Avoid SVG feTurbulence here: it is surprisingly expensive during
+     frequent typing repaints. A static CSS pattern gives the same subtle
+     texture at a fraction of the rendering cost. */
+  opacity: 0.028;
+  mix-blend-mode: multiply;
+  background-image:
+    radial-gradient(circle at 20% 20%, rgba(20, 20, 18, 0.14) 0 0.7px, transparent 0.8px),
+    radial-gradient(circle at 70% 60%, rgba(20, 20, 18, 0.10) 0 0.6px, transparent 0.7px);
+  background-size: 7px 7px, 11px 11px;
+}
+
+.editorial-grid {
+  background-image:
+    linear-gradient(to right, rgba(20, 20, 18, 0.045) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(20, 20, 18, 0.035) 1px, transparent 1px);
+  background-size: 72px 72px;
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.5), transparent 80%);
+}
+
+.editorial-vignette {
+  background: radial-gradient(circle at center, transparent 40%, rgba(20, 20, 18, 0.07) 100%);
+}
+
+.soft-shadow {
+  box-shadow:
+    0 18px 45px rgba(25, 24, 20, 0.08),
+    0 3px 10px rgba(25, 24, 20, 0.05);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+
+/* Display face: deliberately reserved for the landing-page statement. */
+.font-display {
+  font-family: var(--font-press-start), ui-monospace, monospace;
+  font-weight: 400;
+  text-rendering: geometricPrecision;
+}
+
+/* A little more tactile than a flat white canvas. */
+.app-background {
+  background:
+    radial-gradient(62% 48% at 50% 42%, rgba(255, 255, 255, 0.92), transparent 70%),
+    radial-gradient(34% 42% at 92% 20%, rgba(215, 210, 199, 0.25), transparent 74%),
+    radial-gradient(34% 42% at 8% 82%, rgba(225, 221, 211, 0.24), transparent 74%),
+    linear-gradient(135deg, #f4f1ea 0%, #efede7 48%, #f6f4ef 100%);
+}
+
+/* Typing progress: make the user's position immediately readable at a glance. */
+.typing-passage {
+  font-variant-ligatures: none;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Fixed-height reading window: long tests advance to the next chunk instead of
+  making the browser scroll the page. */
+.typing-passage-viewport {
+  height: clamp(10rem, 28vw, 16rem);
+  overflow: hidden;
+  display: block;
+  word-break: normal;
+  contain: layout paint;
+}
+
+
+.typing-char {
+  position: relative;
+  white-space: pre;
+  /* No per-character transitions: the passage changes on every keystroke,
+     so animating hundreds of spans creates unnecessary style/repaint work. */
+}
+
+/* Completed characters become visually dense, like a completed trail through the passage. */
+.typing-char-typed {
+  color: var(--color-text-primary);
+  /* Typed text changes only in color; keep the same visual weight as the
+     remaining passage, matching the clean Monkeytype-style reading cue. */
+  font-weight: 400;
+  opacity: 1;
+}
+
+/* The remaining passage intentionally recedes so the next words are easy to locate. */
+.typing-char-remaining {
+  color: var(--color-text-muted);
+  opacity: 0.52;
+  font-weight: 400;
+}
+
+/* The current character is still untyped: keep it visually identical to the
+   remaining passage so only completed characters become dark. */
+.typing-char-current {
+  color: var(--color-text-muted);
+  opacity: 0.52;
+  font-weight: 400;
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/* Keep a clear blinking caret at the current position without making the
+   current character look typed. The character itself stays muted; only this
+   thin vertical line marks where the next keystroke will land. */
+.typing-char-current::before {
+  content: "";
+  position: absolute;
+  left: -0.08em;
+  top: 0.08em;
+  width: 2px;
+  height: 0.88em;
+  border-radius: 999px;
+  background: var(--color-text-primary);
+  opacity: 1;
+  animation: typing-caret-blink 1s steps(1, end) infinite;
+  pointer-events: none;
+}
+
+@keyframes typing-caret-blink {
+  0%, 48% {
+    opacity: 1;
+  }
+  49%, 100% {
+    opacity: 0;
+  }
+}
+
+/* When the final character of a visible chunk was typed incorrectly, the
+   wrong character remains visible and this caret sits immediately after it.
+   The user can therefore see the mistake before pressing Backspace. */
+.typing-caret-after {
+  display: inline-block;
+  width: 2px;
+  height: 0.88em;
+  margin-left: 0.08em;
+  vertical-align: -0.04em;
+  border-radius: 999px;
+  background: var(--color-text-primary);
+  animation: typing-caret-blink 1s steps(1, end) infinite;
+}
+
+.typing-char-wrong {
+  color: var(--color-error);
+  font-weight: 650;
+  background: rgba(169, 68, 68, 0.12);
+  border-radius: 2px;
+  text-decoration: underline;
+  text-decoration-color: rgba(169, 68, 68, 0.4);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .typing-char {
+    transition: none;
+  }
+}
+
+/* Theme system ----------------------------------------------------------- */
+:root {
+  --color-sidebar-glow: rgba(255, 255, 255, 0.60);
+  --color-app-glow: rgba(255, 255, 255, 0.92);
+  --color-app-glow-2: rgba(210, 206, 196, 0.28);
+  --color-app-glow-3: rgba(225, 221, 211, 0.22);
+  --color-grid: rgba(20, 20, 18, 0.045);
+  --color-grid-y: rgba(20, 20, 18, 0.035);
+  --color-vignette: rgba(20, 20, 18, 0.07);
+  --color-home-orb: rgba(255, 255, 255, 0.70);
+  --color-home-orb-2: rgba(210, 206, 196, 0.25);
+  --color-stat-hover: rgba(255, 255, 255, 0.45);
+  --color-nav-wash: rgba(20, 20, 18, 0.045);
+  --color-selection-bg: #141412;
+  --color-selection-text: #f5f3ee;
+  --color-accent-contrast: #f5f3ee;
+  --color-accent-soft: rgba(17, 17, 15, 0.08);
+  --color-accent-wash: rgba(17, 17, 15, 0.045);
+  --color-accent-border: rgba(17, 17, 15, 0.22);
+  --color-hero-glow: rgba(255, 255, 255, 0.34);
+  --color-focus-ring: rgba(17, 17, 15, 0.18);
+  --color-accent-shadow: rgba(17, 17, 15, 0.18);
+}
+
+html[data-theme="stoic"] {
+  color-scheme: light;
+}
+
+html[data-theme="midnight"] {
+  color-scheme: dark;
+  --color-sidebar: #151618;
+  --color-background: #101113;
+  --color-background-secondary: #17191c;
+  --color-surface: #1b1d20;
+  --color-surface-elevated: #202226;
+  --color-border: #2b2e33;
+  --color-border-strong: #454951;
+  --color-text-primary: #f2f0ea;
+  --color-text-secondary: #aaa9a4;
+  --color-text-muted: #6f7175;
+  --color-accent: #f2f0ea;
+  --color-accent-hover: #ffffff;
+  --color-success: #66d19e;
+  --color-warning: #d7aa5b;
+  --color-error: #ff7279;
+  --color-sidebar-glow: rgba(255, 255, 255, 0.055);
+  --color-app-glow: rgba(255, 255, 255, 0.065);
+  --color-app-glow-2: rgba(255, 255, 255, 0.035);
+  --color-app-glow-3: rgba(255, 255, 255, 0.02);
+  --color-grid: rgba(255, 255, 255, 0.032);
+  --color-grid-y: rgba(255, 255, 255, 0.022);
+  --color-vignette: rgba(0, 0, 0, 0.24);
+  --color-home-orb: rgba(255, 255, 255, 0.06);
+  --color-home-orb-2: rgba(255, 255, 255, 0.035);
+  --color-stat-hover: rgba(255, 255, 255, 0.055);
+  --color-nav-wash: rgba(255, 255, 255, 0.035);
+  --color-selection-bg: #f2f0ea;
+  --color-selection-text: #101113;
+  --color-accent-contrast: #111214;
+  --color-accent-soft: rgba(242, 240, 234, 0.08);
+  --color-accent-wash: rgba(242, 240, 234, 0.045);
+  --color-accent-border: rgba(242, 240, 234, 0.24);
+  --color-hero-glow: rgba(242, 240, 234, 0.13);
+  --color-focus-ring: rgba(242, 240, 234, 0.18);
+  --color-accent-shadow: rgba(242, 240, 234, 0.16);
+}
+
+html[data-theme="purple"] {
+  color-scheme: dark;
+  --color-sidebar: #15121c;
+  --color-background: #0f0d14;
+  --color-background-secondary: #17131e;
+  --color-surface: #1b1724;
+  --color-surface-elevated: #211b2b;
+  --color-border: #30283a;
+  --color-border-strong: #51455f;
+  --color-text-primary: #f3f0f6;
+  --color-text-secondary: #b2a9bb;
+  --color-text-muted: #746b7e;
+  --color-accent: #a78bfa;
+  --color-accent-hover: #b89dff;
+  --color-success: #65d6a2;
+  --color-warning: #dfb665;
+  --color-error: #ff7279;
+  --color-sidebar-glow: rgba(167, 139, 250, 0.07);
+  --color-app-glow: rgba(167, 139, 250, 0.09);
+  --color-app-glow-2: rgba(124, 58, 237, 0.06);
+  --color-app-glow-3: rgba(255, 255, 255, 0.02);
+  --color-grid: rgba(167, 139, 250, 0.035);
+  --color-grid-y: rgba(255, 255, 255, 0.018);
+  --color-vignette: rgba(0, 0, 0, 0.28);
+  --color-home-orb: rgba(167, 139, 250, 0.09);
+  --color-home-orb-2: rgba(124, 58, 237, 0.06);
+  --color-stat-hover: rgba(167, 139, 250, 0.065);
+  --color-nav-wash: rgba(167, 139, 250, 0.045);
+  --color-selection-bg: #a78bfa;
+  --color-selection-text: #0f0d14;
+  --color-accent-contrast: #0f0d14;
+  --color-accent-soft: rgba(167, 139, 250, 0.10);
+  --color-accent-wash: rgba(167, 139, 250, 0.055);
+  --color-accent-border: rgba(167, 139, 250, 0.28);
+  --color-hero-glow: rgba(167, 139, 250, 0.12);
+  --color-focus-ring: rgba(167, 139, 250, 0.20);
+  --color-accent-shadow: rgba(124, 58, 237, 0.18);
+}
+
+html[data-theme="cyan"] {
+  color-scheme: dark;
+  --color-sidebar: #101719;
+  --color-background: #0b1113;
+  --color-background-secondary: #10191c;
+  --color-surface: #142024;
+  --color-surface-elevated: #19272b;
+  --color-border: #24363b;
+  --color-border-strong: #3d565d;
+  --color-text-primary: #f0f5f4;
+  --color-text-secondary: #a7b8ba;
+  --color-text-muted: #687c80;
+  --color-accent: #55d6e8;
+  --color-accent-hover: #76e3f1;
+  --color-success: #57d39b;
+  --color-warning: #e1b45f;
+  --color-error: #ff737b;
+  --color-sidebar-glow: rgba(85, 214, 232, 0.065);
+  --color-app-glow: rgba(85, 214, 232, 0.09);
+  --color-app-glow-2: rgba(34, 211, 238, 0.055);
+  --color-app-glow-3: rgba(255, 255, 255, 0.018);
+  --color-grid: rgba(85, 214, 232, 0.032);
+  --color-grid-y: rgba(255, 255, 255, 0.018);
+  --color-vignette: rgba(0, 0, 0, 0.3);
+  --color-home-orb: rgba(85, 214, 232, 0.085);
+  --color-home-orb-2: rgba(34, 211, 238, 0.05);
+  --color-stat-hover: rgba(85, 214, 232, 0.06);
+  --color-nav-wash: rgba(85, 214, 232, 0.04);
+  --color-selection-bg: #55d6e8;
+  --color-selection-text: #0b1113;
+  --color-accent-contrast: #071012;
+  --color-accent-soft: rgba(85, 214, 232, 0.10);
+  --color-accent-wash: rgba(85, 214, 232, 0.055);
+  --color-accent-border: rgba(85, 214, 232, 0.28);
+  --color-hero-glow: rgba(85, 214, 232, 0.12);
+  --color-focus-ring: rgba(85, 214, 232, 0.20);
+  --color-accent-shadow: rgba(34, 211, 238, 0.18);
+}
+
+html[data-theme="emerald"] {
+  color-scheme: dark;
+  --color-sidebar: #101713;
+  --color-background: #0b110e;
+  --color-background-secondary: #101a14;
+  --color-surface: #142019;
+  --color-surface-elevated: #192820;
+  --color-border: #263a2e;
+  --color-border-strong: #415948;
+  --color-text-primary: #eff5f0;
+  --color-text-secondary: #a9b9ad;
+  --color-text-muted: #687a6d;
+  --color-accent: #4fd49a;
+  --color-accent-hover: #6ae0aa;
+  --color-success: #5de2a4;
+  --color-warning: #dfb660;
+  --color-error: #ff747b;
+  --color-sidebar-glow: rgba(79, 212, 154, 0.065);
+  --color-app-glow: rgba(79, 212, 154, 0.085);
+  --color-app-glow-2: rgba(16, 185, 129, 0.05);
+  --color-app-glow-3: rgba(255, 255, 255, 0.018);
+  --color-grid: rgba(79, 212, 154, 0.032);
+  --color-grid-y: rgba(255, 255, 255, 0.018);
+  --color-vignette: rgba(0, 0, 0, 0.3);
+  --color-home-orb: rgba(79, 212, 154, 0.085);
+  --color-home-orb-2: rgba(16, 185, 129, 0.05);
+  --color-stat-hover: rgba(79, 212, 154, 0.06);
+  --color-nav-wash: rgba(79, 212, 154, 0.04);
+  --color-selection-bg: #4fd49a;
+  --color-selection-text: #0b110e;
+  --color-accent-contrast: #07110c;
+  --color-accent-soft: rgba(79, 212, 154, 0.10);
+  --color-accent-wash: rgba(79, 212, 154, 0.055);
+  --color-accent-border: rgba(79, 212, 154, 0.28);
+  --color-hero-glow: rgba(79, 212, 154, 0.12);
+  --color-focus-ring: rgba(79, 212, 154, 0.20);
+  --color-accent-shadow: rgba(16, 185, 129, 0.18);
+}
+
+html[data-theme="red"] {
+  color-scheme: dark;
+  --color-sidebar: #171112;
+  --color-background: #100b0d;
+  --color-background-secondary: #191012;
+  --color-surface: #211518;
+  --color-surface-elevated: #281a1e;
+  --color-border: #3b272b;
+  --color-border-strong: #5b3b40;
+  --color-text-primary: #f7f0f0;
+  --color-text-secondary: #bba8aa;
+  --color-text-muted: #7d676b;
+  --color-accent: #f06a72;
+  --color-accent-hover: #ff8188;
+  --color-success: #68d49f;
+  --color-warning: #dfb460;
+  --color-error: #ff7b82;
+  --color-sidebar-glow: rgba(240, 106, 114, 0.065);
+  --color-app-glow: rgba(240, 106, 114, 0.085);
+  --color-app-glow-2: rgba(185, 28, 28, 0.055);
+  --color-app-glow-3: rgba(255, 255, 255, 0.018);
+  --color-grid: rgba(240, 106, 114, 0.032);
+  --color-grid-y: rgba(255, 255, 255, 0.018);
+  --color-vignette: rgba(0, 0, 0, 0.3);
+  --color-home-orb: rgba(240, 106, 114, 0.085);
+  --color-home-orb-2: rgba(185, 28, 28, 0.05);
+  --color-stat-hover: rgba(240, 106, 114, 0.06);
+  --color-nav-wash: rgba(240, 106, 114, 0.04);
+  --color-selection-bg: #f06a72;
+  --color-selection-text: #100b0d;
+  --color-accent-contrast: #160b0e;
+  --color-accent-soft: rgba(240, 106, 114, 0.10);
+  --color-accent-wash: rgba(240, 106, 114, 0.055);
+  --color-accent-border: rgba(240, 106, 114, 0.28);
+  --color-hero-glow: rgba(240, 106, 114, 0.12);
+  --color-focus-ring: rgba(240, 106, 114, 0.20);
+  --color-accent-shadow: rgba(185, 28, 28, 0.18);
+}
+
+html[data-theme="pink"] {
+  color-scheme: dark;
+  --color-sidebar: #181116;
+  --color-background: #110c10;
+  --color-background-secondary: #1a1117;
+  --color-surface: #21151d;
+  --color-surface-elevated: #291923;
+  --color-border: #3b2732;
+  --color-border-strong: #5b3b4b;
+  --color-text-primary: #f7f0f4;
+  --color-text-secondary: #c0aab5;
+  --color-text-muted: #806b76;
+  --color-accent: #f08ab8;
+  --color-accent-hover: #ff9fc7;
+  --color-success: #6bd6a5;
+  --color-warning: #dfb563;
+  --color-error: #ff747f;
+  --color-sidebar-glow: rgba(240, 138, 184, 0.07);
+  --color-app-glow: rgba(240, 138, 184, 0.09);
+  --color-app-glow-2: rgba(190, 70, 130, 0.055);
+  --color-app-glow-3: rgba(255, 255, 255, 0.018);
+  --color-grid: rgba(240, 138, 184, 0.032);
+  --color-grid-y: rgba(255, 255, 255, 0.018);
+  --color-vignette: rgba(0, 0, 0, 0.3);
+  --color-home-orb: rgba(240, 138, 184, 0.09);
+  --color-home-orb-2: rgba(190, 70, 130, 0.05);
+  --color-stat-hover: rgba(240, 138, 184, 0.065);
+  --color-nav-wash: rgba(240, 138, 184, 0.045);
+  --color-selection-bg: #f08ab8;
+  --color-selection-text: #110c10;
+  --color-accent-contrast: #160b11;
+  --color-accent-soft: rgba(240, 138, 184, 0.10);
+  --color-accent-wash: rgba(240, 138, 184, 0.055);
+  --color-accent-border: rgba(240, 138, 184, 0.28);
+  --color-hero-glow: rgba(240, 138, 184, 0.12);
+  --color-focus-ring: rgba(240, 138, 184, 0.20);
+  --color-accent-shadow: rgba(190, 70, 130, 0.18);
+}
+
+html[data-theme="yellow"] {
+  color-scheme: dark;
+  --color-sidebar: #17150e;
+  --color-background: #100f0a;
+  --color-background-secondary: #18160d;
+  --color-surface: #211e13;
+  --color-surface-elevated: #292516;
+  --color-border: #39341f;
+  --color-border-strong: #5a5231;
+  --color-text-primary: #f7f3e8;
+  --color-text-secondary: #c2b99d;
+  --color-text-muted: #817860;
+  --color-accent: #e7c85a;
+  --color-accent-hover: #f2d76b;
+  --color-success: #6bd5a1;
+  --color-warning: #e7c85a;
+  --color-error: #ff7479;
+  --color-sidebar-glow: rgba(231, 200, 90, 0.065);
+  --color-app-glow: rgba(231, 200, 90, 0.085);
+  --color-app-glow-2: rgba(180, 145, 30, 0.055);
+  --color-app-glow-3: rgba(255, 255, 255, 0.018);
+  --color-grid: rgba(231, 200, 90, 0.032);
+  --color-grid-y: rgba(255, 255, 255, 0.018);
+  --color-vignette: rgba(0, 0, 0, 0.3);
+  --color-home-orb: rgba(231, 200, 90, 0.085);
+  --color-home-orb-2: rgba(180, 145, 30, 0.05);
+  --color-stat-hover: rgba(231, 200, 90, 0.06);
+  --color-nav-wash: rgba(231, 200, 90, 0.04);
+  --color-selection-bg: #e7c85a;
+  --color-selection-text: #100f0a;
+  --color-accent-contrast: #151107;
+  --color-accent-soft: rgba(231, 200, 90, 0.10);
+  --color-accent-wash: rgba(231, 200, 90, 0.055);
+  --color-accent-border: rgba(231, 200, 90, 0.28);
+  --color-hero-glow: rgba(231, 200, 90, 0.12);
+  --color-focus-ring: rgba(231, 200, 90, 0.20);
+  --color-accent-shadow: rgba(180, 145, 30, 0.18);
+}
+
+html[data-theme="stoic"] .app-background,
+html:not([data-theme]) .app-background {
+  background:
+    radial-gradient(62% 48% at 50% 42%, var(--color-app-glow), transparent 70%),
+    radial-gradient(34% 42% at 92% 20%, var(--color-app-glow-2), transparent 74%),
+    radial-gradient(34% 42% at 8% 82%, var(--color-app-glow-3), transparent 74%),
+    linear-gradient(135deg, #f4f1ea 0%, #efede7 48%, #f6f4ef 100%);
+}
+
+html[data-theme]:not([data-theme="stoic"]) .app-background {
+  background:
+    radial-gradient(62% 48% at 50% 42%, var(--color-app-glow), transparent 70%),
+    radial-gradient(34% 42% at 92% 20%, var(--color-app-glow-2), transparent 74%),
+    radial-gradient(34% 42% at 8% 82%, var(--color-app-glow-3), transparent 74%),
+    linear-gradient(135deg, var(--color-background) 0%, var(--color-background-secondary) 52%, var(--color-background) 100%);
+}
+
+.app-texture {
+  opacity: 0.022;
+  mix-blend-mode: soft-light;
+}
+
+html[data-theme="stoic"] .app-texture,
+html:not([data-theme]) .app-texture {
+  mix-blend-mode: multiply;
+}
+
+.editorial-grid {
+  background-image:
+    linear-gradient(to right, var(--color-grid) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--color-grid-y) 1px, transparent 1px);
+}
+
+.editorial-vignette {
+  background: radial-gradient(circle at center, transparent 40%, var(--color-vignette) 100%);
+}
+
+.home-orb-primary { background: var(--color-home-orb); }
+.home-orb-secondary { background: var(--color-home-orb-2); }
+.home-stat-hover:hover { background: var(--color-stat-hover); }
+.nav-hover-wash { background: linear-gradient(to right, var(--color-nav-wash), transparent); }
+
+::selection {
+  background: var(--color-selection-bg);
+  color: var(--color-selection-text);
+}
+
+/* UI typography: clean system sans-serif everywhere except the hero display face. */
+body {
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 16px;
+  letter-spacing: 0.015em;
+}
+
+button,
+input,
+textarea,
+select {
+  font-family: inherit;
+  letter-spacing: 0.02em;
+}
+
+/* Existing semantic mono utility is intentionally normalized to the same readable sans face.
+   This keeps labels/data from becoming visually cramped while preserving their spacing classes. */
+.font-mono {
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.045em;
+}
+
+.typing-passage {
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-weight: 500;
+  letter-spacing: 0.045em;
+}
+
+
+/* Final visual polish ---------------------------------------------------- */
+.app-background {
+  transition: background 360ms ease;
+}
+
+html[data-theme] .app-background::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(28% 22% at 18% 16%, var(--color-hero-glow), transparent 72%),
+    radial-gradient(24% 20% at 84% 78%, var(--color-hero-glow), transparent 72%);
+  opacity: 0.72;
+}
+
+html[data-theme="stoic"] .app-background::after,
+html:not([data-theme]) .app-background::after {
+  opacity: 0.55;
+}
+
+.sidebar-accent-rule {
+  background: linear-gradient(90deg, var(--color-accent), transparent 78%);
+  opacity: 0.34;
+}
+
+.nav-accent-line {
+  background: var(--color-accent) !important;
+  box-shadow: 0 0 18px var(--color-accent-soft);
+}
+
+.nav-accent-dot {
+  background: var(--color-accent) !important;
+  box-shadow: 0 0 12px var(--color-accent-soft);
+}
+
+.nav-accent-wash {
+  background: linear-gradient(90deg, var(--color-accent-wash), transparent) !important;
+}
+
+.theme-accent-button {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-accent-contrast);
+  box-shadow: 0 12px 30px var(--color-accent-shadow);
+}
+
+.theme-accent-button:hover {
+  border-color: var(--color-accent-hover);
+  background: var(--color-accent-hover);
+  box-shadow: 0 18px 38px var(--color-accent-shadow);
+}
+
+.theme-outline-button {
+  border-color: var(--color-accent-border);
+  background: var(--color-accent-wash);
+}
+
+.theme-outline-button:hover {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+
+.theme-focus:focus-visible {
+  outline: none;
+  border-color: var(--color-accent) !important;
+  box-shadow: 0 0 0 3px var(--color-focus-ring);
+}
+
+.theme-accent-fill {
+  background: var(--color-accent) !important;
+  color: var(--color-accent-contrast) !important;
+}
+
+.theme-accent-border {
+  border-color: var(--color-accent-border) !important;
+}
+
+.theme-accent-text {
+  color: var(--color-accent) !important;
+}
+
+.theme-accent-rule {
+  background: var(--color-accent) !important;
+  box-shadow: 0 0 14px var(--color-accent-soft);
+}
+
+.theme-card {
+  border-color: var(--color-accent-border);
+  box-shadow: 0 18px 50px var(--color-accent-shadow);
+}
+
+.theme-preset-active {
+  border-color: var(--color-accent) !important;
+  background: var(--color-accent) !important;
+  color: var(--color-accent-contrast) !important;
+  box-shadow: 0 8px 22px var(--color-accent-shadow);
+}
+
+.theme-preset:hover {
+  border-color: var(--color-accent) !important;
+  color: var(--color-text-primary) !important;
+  background: var(--color-accent-wash) !important;
+}
+
+.home-stat-hover:hover {
+  box-shadow: inset 0 -1px 0 var(--color-accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-background { transition: none; }
+}
