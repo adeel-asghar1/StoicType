@@ -719,3 +719,162 @@ html:not([data-theme]) .app-background::after {
 @media (prefers-reduced-motion: reduce) {
   .app-background { transition: none; }
 }
+
+
+/* Escape the Scorpion --------------------------------------------------- */
+.escape-mode-card {
+  overflow: hidden;
+}
+
+.escape-chase {
+  position: relative;
+  margin: -0.25rem 0 2.25rem;
+  padding: 0.25rem 0 0;
+  color: var(--color-text-primary);
+}
+
+.escape-chase-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.escape-chase-kicker {
+  margin: 0;
+  color: var(--color-accent);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.escape-chase-status {
+  margin: 0.35rem 0 0;
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  transition: color 180ms ease;
+}
+
+.escape-chase-icon {
+  display: inline-flex;
+  font-size: 1.35rem;
+  line-height: 1;
+  filter: drop-shadow(0 0 10px var(--color-accent-soft));
+}
+
+.escape-track {
+  position: relative;
+  height: 5.5rem;
+  margin-top: 0.9rem;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: 0.35rem;
+  background:
+    linear-gradient(180deg, var(--color-background-secondary), var(--color-surface)),
+    var(--color-surface);
+}
+
+.escape-track-line {
+  position: absolute;
+  left: 4%;
+  right: 4%;
+  top: 72%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--color-border-strong) 10%, var(--color-border-strong) 90%, transparent);
+}
+
+.escape-runner,
+.escape-scorpion {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+  width: 2.8rem;
+  height: 3.6rem;
+  transform: translate(-50%, -50%);
+  transition: left 100ms linear;
+  will-change: left;
+}
+
+.escape-runner {
+  color: var(--color-text-primary);
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.22));
+  animation: escape-runner-bob 560ms ease-in-out infinite alternate;
+}
+
+.escape-scorpion {
+  z-index: 3;
+  width: 4.6rem;
+  height: 3.1rem;
+  color: var(--color-accent);
+  filter: drop-shadow(0 0 12px var(--color-accent-soft));
+  animation: escape-scorpion-crawl 420ms ease-in-out infinite alternate;
+}
+
+.escape-runner svg,
+.escape-scorpion svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.escape-danger-line {
+  position: absolute;
+  left: 4%;
+  top: 12%;
+  bottom: 12%;
+  width: 1px;
+  background: var(--color-error);
+  opacity: 0.65;
+  box-shadow: 0 0 14px var(--color-error);
+}
+
+.escape-chase-labels {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 0.55rem;
+  color: var(--color-text-muted);
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.escape-chase-danger .escape-chase-status {
+  color: var(--color-warning);
+}
+
+.escape-chase-critical .escape-chase-status {
+  color: var(--color-error);
+  font-weight: 700;
+}
+
+.escape-progress-fill {
+  background: linear-gradient(90deg, var(--color-accent), var(--color-warning)) !important;
+  box-shadow: 0 0 12px var(--color-accent-soft);
+}
+
+@keyframes escape-runner-bob {
+  from { transform: translate(-50%, -53%); }
+  to { transform: translate(-50%, -47%); }
+}
+
+@keyframes escape-scorpion-crawl {
+  from { transform: translate(-50%, -50%) rotate(-1deg); }
+  to { transform: translate(-50%, -50%) rotate(1deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .escape-runner,
+  .escape-scorpion {
+    animation: none;
+    transition: none;
+  }
+
+  .escape-chase-status {
+    transition: none;
+  }
+}

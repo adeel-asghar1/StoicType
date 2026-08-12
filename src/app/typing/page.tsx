@@ -30,9 +30,12 @@ type Result = {
   personalBest: number;
   newBest: boolean;
   streak: number;
+  escapeCaught?: boolean;
 };
 
 const VISIBLE_WORDS = 28;
+const ESCAPE_INITIAL_GAP = 78;
+const ESCAPE_PRESSURE_CPS = 4.2;
 
 type VisibleRange = {
   start: number;
@@ -152,6 +155,11 @@ const TypingChar = memo(function TypingChar({
   return <span className={className}>{char}</span>;
 });
 
+
+function getCurrentEscapePenalty(value: string, passage: string): number {
+  return countErrors(value, passage) * 0.35;
+}
+
 const TypingPassage = memo(function TypingPassage({
   text,
   start,
@@ -207,6 +215,7 @@ export default function TypingPage() {
   const [elapsed, setElapsed] = useState(0);
   const [errors, setErrors] = useState(0);
   const [streak, setStreak] = useState(0);
+  const [escapeGap, setEscapeGap] = useState(ESCAPE_INITIAL_GAP);
 
   const [finished, setFinished] = useState<Result>({
     wpm: 0,
@@ -234,7 +243,7 @@ export default function TypingPage() {
   }, []);
 
   const finishTest = useCallback(
-    (value: string, start: number) => {
+    (value: string, start: number, escapeCaught = false) => {
       const duration = Math.max((Date.now() - start) / 1000, 0.1);
       const currentPassage = passageRef.current;
       const currentName = nameRef.current;
@@ -268,6 +277,7 @@ export default function TypingPage() {
         personalBest: Math.max(previousBest, wpm),
         newBest,
         streak: currentStreak,
+        escapeCaught: currentPreset.kind === "escape" ? escapeCaught : undefined,
       };
 
       setElapsed(duration);
@@ -325,7 +335,8 @@ export default function TypingPage() {
 
       if (
         (currentPreset.kind === "words" ||
-          currentPreset.kind === "daily") &&
+          currentPreset.kind === "daily" ||
+          currentPreset.kind === "escape") &&
         limited.length >= currentPassage.length
       ) {
         finishTest(
@@ -423,6 +434,25 @@ export default function TypingPage() {
 
       setElapsed(nextElapsed);
 
+      if (presetRef.current.kind === "escape") {
+        const nextGap =
+          ESCAPE_INITIAL_GAP +
+          typedRef.current.length -
+          nextElapsed * ESCAPE_PRESSURE_CPS -
+          getCurrentEscapePenalty(typedRef.current, passageRef.current);
+
+        setEscapeGap(nextGap);
+
+        if (nextGap <= 0) {
+          finishTest(
+            typedRef.current,
+            startedAt,
+            true,
+          );
+        }
+        return;
+      }
+
       if (
         presetRef.current.kind === "time" &&
         nextElapsed >=
@@ -433,7 +463,7 @@ export default function TypingPage() {
           startedAt,
         );
       }
-    }, 250);
+    }, 100);
 
     return () => window.clearInterval(timer);
   }, [finishTest, phase, startedAt]);
@@ -541,6 +571,7 @@ export default function TypingPage() {
       setElapsed(0);
       setStartedAt(null);
       setErrors(0);
+      setEscapeGap(ESCAPE_INITIAL_GAP);
 
       const currentStreak = getDailyStreak();
 
@@ -712,6 +743,15 @@ export default function TypingPage() {
             100,
         );
 
+  const escapeDistance = Math.min(
+    82,
+    Math.max(8, 10 + escapeGap * 0.78),
+  );
+  const escapeDanger =
+    preset.kind === "escape" && escapeGap <= 24;
+  const escapeCritical =
+    preset.kind === "escape" && escapeGap <= 10;
+
   const visibleRange = getVisibleRange(
     passage,
     viewportStart,
@@ -792,7 +832,16 @@ export default function TypingPage() {
           />
         ) : (
           <>
-            <div className="mt-7 rounded-[4px] border border-border-strong bg-surface-elevated/75 p-6 shadow-[0_18px_45px_rgba(25,24,20,0.06)] sm:p-10 lg:p-14">
+            <div className={`mt-7 rounded-[4px] border border-border-strong bg-surface-elevated/75 p-6 shadow-[0_18px_45px_rgba(25,24,20,0.06)] sm:p-10 lg:p-14 ${preset.kind === "escape" ? "escape-mode-card" : ""}`}>
+              {preset.kind === "escape" && (
+                <EscapeChase
+                  distance={escapeDistance}
+                  danger={escapeDanger}
+                  critical={escapeCritical}
+                  started={Boolean(startedAt)}
+                />
+              )}
+
               <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
                 <span className="font-mono text-xs uppercase tracking-[0.18em] text-muted">
                   {preset.label} ·{" "}
@@ -805,7 +854,9 @@ export default function TypingPage() {
                             elapsed,
                         ),
                       )}s left`
-                    : `${typed.length} / ${passage.length} characters`}
+                    : preset.kind === "escape"
+                      ? `${Math.max(0, Math.round(escapeGap))}m ahead`
+                      : `${typed.length} / ${passage.length} characters`}
                 </span>
 
                 <span className="font-mono text-xs uppercase tracking-[0.18em] text-muted">
@@ -818,9 +869,9 @@ export default function TypingPage() {
                 className="mb-10 h-[3px] w-full overflow-hidden bg-border/70"
               >
                 <div
-                  className="theme-accent-fill h-full"
+                  className={preset.kind === "escape" ? "escape-progress-fill h-full" : "theme-accent-fill h-full"}
                   style={{
-                    width: `${progress}%`,
+                    width: `${preset.kind === "escape" ? Math.min(100, Math.max(4, escapeGap)) : progress}%`,
                   }}
                 />
               </div>
@@ -872,7 +923,9 @@ export default function TypingPage() {
               <p className="text-sm tracking-[0.025em] text-muted">
                 {preset.kind === "daily"
                   ? "Daily passage · same challenge for everyone today"
-                  : "Start typing to begin · Tab or Esc to restart"}
+                  : preset.kind === "escape"
+                    ? "Keep typing · if you slow down, the scorpion gets closer"
+                    : "Start typing to begin · Tab or Esc to restart"}
               </p>
 
               <button
@@ -890,6 +943,71 @@ export default function TypingPage() {
         )}
       </div>
     </main>
+  );
+}
+
+function EscapeChase({
+  distance,
+  danger,
+  critical,
+  started,
+}: {
+  distance: number;
+  danger: boolean;
+  critical: boolean;
+  started: boolean;
+}) {
+  const scorpionLeft = Math.max(4, Math.min(67, 76 - distance * 0.72));
+
+  return (
+    <div className={`escape-chase ${danger ? "escape-chase-danger" : ""} ${critical ? "escape-chase-critical" : ""}`}>
+      <div className="escape-chase-header">
+        <div>
+          <p className="escape-chase-kicker">Escape the Scorpion</p>
+          <p className="escape-chase-status">
+            {!started
+              ? "Start running."
+              : critical
+                ? "IT'S RIGHT BEHIND YOU."
+                : danger
+                  ? "KEEP MOVING."
+                  : "Stay ahead."}
+          </p>
+        </div>
+        <span className="escape-chase-icon" aria-hidden="true">🦂</span>
+      </div>
+
+      <div className="escape-track" aria-hidden="true">
+        <div className="escape-track-line" />
+        <div className="escape-runner" style={{ left: "76%" }}>
+          <svg viewBox="0 0 48 64" role="presentation">
+            <circle cx="24" cy="9" r="6" fill="currentColor" />
+            <path d="M24 16v22M24 21L13 30M24 21l11 9M24 38L15 55M24 38l9 17" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
+          </svg>
+        </div>
+
+        <div
+          className="escape-scorpion"
+          style={{ left: `${scorpionLeft}%` }}
+        >
+          <svg viewBox="0 0 88 58" role="presentation">
+            <path d="M18 32c7-11 23-13 34-7 7 4 11 10 17 10 5 0 7-4 9-8" fill="none" stroke="currentColor" strokeWidth="5" strokeLinecap="round" />
+            <ellipse cx="34" cy="30" rx="17" ry="11" fill="currentColor" />
+            <circle cx="19" cy="30" r="8" fill="currentColor" />
+            <path d="M12 25L3 18M13 35L3 43M46 25l12-8M46 35l12 8M28 20l-6-10M37 20l5-10" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
+            <path d="M8 25l-5-5M8 35l-5 5" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+          </svg>
+        </div>
+
+        <span className="escape-danger-line" />
+      </div>
+
+      <div className="escape-chase-labels">
+        <span>SCORPION</span>
+        <span>{critical ? "BITING DISTANCE" : danger ? "DANGER" : "SAFE DISTANCE"}</span>
+        <span>YOU</span>
+      </div>
+    </div>
   );
 }
 
@@ -929,9 +1047,13 @@ function Result({
       </p>
 
       <h2 className="mt-5 font-display text-3xl leading-relaxed sm:text-4xl">
-        {result.newBest
-          ? "New personal best."
-          : "Well typed."}
+        {result.escapeCaught
+          ? "The scorpion caught you."
+          : result.newBest
+            ? "New personal best."
+            : result.escapeCaught === false
+              ? "You escaped."
+              : "Well typed."}
       </h2>
 
       <div className="mt-10 grid grid-cols-2 border-y border-line sm:grid-cols-4">
