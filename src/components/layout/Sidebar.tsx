@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Github } from "lucide-react";
+import { Github, Instagram, Linkedin } from "lucide-react";
 import { Logo } from "@/components/ui/Logo";
 import { NavLink } from "@/components/ui/NavLink";
 import { NAV_ITEMS } from "@/constants/navigation";
@@ -38,6 +38,9 @@ export function Sidebar({ variant, onNavigate }: SidebarProps) {
         ))}
       </nav>
 
+
+     
+
       <div className="relative mt-8 space-y-3 border-t border-line pt-5 px-2 text-small text-secondary">
         <a
           href="https://github.com/adeelasghar12123-lang"
@@ -48,21 +51,34 @@ export function Sidebar({ variant, onNavigate }: SidebarProps) {
           <Github className="h-4 w-4 transition-transform duration-300 group-hover:rotate-[-8deg]" strokeWidth={1.65} />
           <span>GitHub</span>
         </a>
-        
-      </div>
 
-      <div className="relative mt-8 space-y-3 border-t border-line pt-5 px-2 text-small text-secondary">
-  <a
+         <a
+          href="https://www.linkedin.com/in/adeel-stoic-asghar?utm_source=share_via&utm_content=profile&utm_medium=member_android"
+          target="_blank"
+          rel="noreferrer"
+          className="group flex items-center gap-2 rounded-md py-1 transition-all duration-300 hover:translate-x-1 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar"
+        >
+          <Linkedin className="h-4 w-4 transition-transform duration-300 group-hover:rotate-[-8deg]" strokeWidth={1.65} />
+          <span>LinkedIn</span>
+        </a>
+
+        <a
     href="https://www.instagram.com/prime.adeel/?utm_source=ig_web_button_share_sheet"
     target="_blank"
     rel="noreferrer"
     className="group flex items-center gap-2 rounded-md py-1 transition-all duration-300 hover:translate-x-1 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar"
   >
-   
+    <Instagram className="h-4 w-4 transition-transform duration-300 group-hover:rotate-[-8deg]" strokeWidth={1.65} />
     <span>Instagram</span>
   </a>
         <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-muted">{APP_VERSION}</p>
-</div>
+      </div>
+
+       <div className="relative mt-8 space-y-3 border-t border-line pt-5 px-2 text-small text-secondary">
+        <span>By Adeel Asghar</span>
+      </div>
+
+    
     </motion.aside>
   );
 }
