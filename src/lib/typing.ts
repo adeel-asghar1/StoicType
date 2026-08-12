@@ -21,18 +21,17 @@ export const PASSAGES = [
   "Remember that your attention is one of the few things you can spend only once. Give it deliberately. Read something difficult, listen when someone speaks, work without checking your phone every four minutes, and occasionally sit with your own thoughts.",
 ];
 
-export type TestPreset = { id: string; label: string; kind: "time" | "words" | "daily" | "escape"; value?: number };
+export type TestPreset = { id: string; label: string; kind: "time" | "words" | "daily" | "escape" | "overdrive"; value?: number };
 
 export const TEST_PRESETS: TestPreset[] = [
   { id: "15s", label: "15s", kind: "time", value: 15 },
   { id: "30s", label: "30s", kind: "time", value: 30 },
   { id: "60s", label: "60s", kind: "time", value: 60 },
-  { id: "120s", label: "120s", kind: "time", value: 120 },
   { id: "25w", label: "25 words", kind: "words", value: 25 },
   { id: "50w", label: "50 words", kind: "words", value: 50 },
-  { id: "100w", label: "100 words", kind: "words", value: 100 },
   { id: "daily", label: "Daily", kind: "daily" },
   { id: "escape", label: "Escape the Scorpion", kind: "escape" },
+  { id: "overdrive", label: "Overdrive", kind: "overdrive" },
 ];
 export function dailyPassage() {
   const today = new Date();

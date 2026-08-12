@@ -31,11 +31,19 @@ type Result = {
   newBest: boolean;
   streak: number;
   escapeCaught?: boolean;
+  score?: number;
+  combo?: number;
+  multiplier?: number;
+  overdriveEvent?: string;
 };
 
 const VISIBLE_WORDS = 28;
 const ESCAPE_INITIAL_GAP = 78;
-const ESCAPE_PRESSURE_CPS = 5.5;
+const ESCAPE_PRESSURE_CPS = 4.2;
+const OVERDRIVE_DURATION = 60;
+const OVERDRIVE_COMBO_STEP = 25;
+const OVERDRIVE_EVENT_DURATION = 6000;
+type OverdriveEvent = "blood-rush" | "void" | "precision" | "sudden-death" | "overdrive";
 
 type VisibleRange = {
   start: number;
@@ -160,6 +168,32 @@ function getCurrentEscapePenalty(value: string, passage: string): number {
   return countErrors(value, passage) * 0.35;
 }
 
+function pickOverdriveEvent(): OverdriveEvent {
+  const events: OverdriveEvent[] = [
+    "blood-rush",
+    "void",
+    "precision",
+    "sudden-death",
+    "overdrive",
+  ];
+  return events[Math.floor(Math.random() * events.length)] ?? "overdrive";
+}
+
+function overdriveEventLabel(event: OverdriveEvent): string {
+  switch (event) {
+    case "blood-rush":
+      return "BLOOD RUSH · 2× SCORE";
+    case "void":
+      return "VOID · MISTAKES HURT";
+    case "precision":
+      return "PRECISION · PERFECT RUN";
+    case "sudden-death":
+      return "SUDDEN DEATH · ONE MISTAKE";
+    case "overdrive":
+      return "OVERDRIVE · 2× MULTIPLIER";
+  }
+}
+
 const TypingPassage = memo(function TypingPassage({
   text,
   start,
@@ -216,6 +250,10 @@ export default function TypingPage() {
   const [errors, setErrors] = useState(0);
   const [streak, setStreak] = useState(0);
   const [escapeGap, setEscapeGap] = useState(ESCAPE_INITIAL_GAP);
+  const [overdriveScore, setOverdriveScore] = useState(0);
+  const [overdriveCombo, setOverdriveCombo] = useState(0);
+  const [overdriveMultiplier, setOverdriveMultiplier] = useState(1);
+  const [overdriveEvent, setOverdriveEvent] = useState<OverdriveEvent | null>(null);
 
   const [finished, setFinished] = useState<Result>({
     wpm: 0,
@@ -235,6 +273,10 @@ export default function TypingPage() {
   const presetRef = useRef<TestPreset>(defaultPreset);
   const viewportStartRef = useRef(0);
   const wordRangesRef = useRef<Array<{ start: number; end: number }>>([]);
+  const overdriveScoreRef = useRef(0);
+  const overdriveComboRef = useRef(0);
+  const overdriveMultiplierRef = useRef(1);
+  const overdriveEventRef = useRef<{ kind: OverdriveEvent; until: number; precisionLeft: number } | null>(null);
 
   const focusInput = useCallback(() => {
     requestAnimationFrame(() => {
@@ -278,6 +320,13 @@ export default function TypingPage() {
         newBest,
         streak: currentStreak,
         escapeCaught: currentPreset.kind === "escape" ? escapeCaught : undefined,
+        score: currentPreset.kind === "overdrive" ? overdriveScoreRef.current : undefined,
+        combo: currentPreset.kind === "overdrive" ? overdriveComboRef.current : undefined,
+        multiplier: currentPreset.kind === "overdrive" ? overdriveMultiplierRef.current : undefined,
+        overdriveEvent:
+          currentPreset.kind === "overdrive" && overdriveEventRef.current
+            ? overdriveEventLabel(overdriveEventRef.current.kind)
+            : undefined,
       };
 
       setElapsed(duration);
@@ -328,6 +377,74 @@ export default function TypingPage() {
       }
 
       const nextErrors = countErrors(limited, currentPassage);
+
+      if (currentPreset.kind === "overdrive" && limited.length > previous.length) {
+        const typedIndex = limited.length - 1;
+        const correct =
+          limited[typedIndex] === currentPassage[typedIndex];
+
+        const activeEvent = overdriveEventRef.current;
+        const eventActive =
+          activeEvent && activeEvent.until > Date.now()
+            ? activeEvent
+            : null;
+
+        if (correct) {
+          const combo = overdriveComboRef.current + 1;
+          let multiplier = overdriveMultiplierRef.current;
+
+          if (combo % OVERDRIVE_COMBO_STEP === 0) {
+            multiplier = Math.min(5, multiplier + 0.5);
+          }
+
+          const eventMultiplier =
+            eventActive?.kind === "blood-rush" || eventActive?.kind === "overdrive"
+              ? 2
+              : 1;
+
+          const points = Math.round(10 * multiplier * eventMultiplier);
+          const score = overdriveScoreRef.current + points;
+
+          if (eventActive?.kind === "precision") {
+            eventActive.precisionLeft -= 1;
+          }
+
+          if (combo % 50 === 0 && !eventActive) {
+            const nextEvent = pickOverdriveEvent();
+            overdriveEventRef.current = {
+              kind: nextEvent,
+              until: Date.now() + OVERDRIVE_EVENT_DURATION,
+              precisionLeft: nextEvent === "precision" ? 20 : 0,
+            };
+            setOverdriveEvent(nextEvent);
+          }
+
+          overdriveComboRef.current = combo;
+          overdriveMultiplierRef.current = multiplier;
+          overdriveScoreRef.current = score;
+          setOverdriveCombo(combo);
+          setOverdriveMultiplier(multiplier);
+          setOverdriveScore(score);
+        } else {
+          if (eventActive?.kind === "sudden-death") {
+            finishTest(limited, startedAtRef.current ?? Date.now());
+            return;
+          }
+
+          const penalty = eventActive?.kind === "void" ? 25 : 10;
+          overdriveScoreRef.current = Math.max(
+            0,
+            overdriveScoreRef.current - penalty * Math.max(1, overdriveMultiplierRef.current),
+          );
+          overdriveComboRef.current = 0;
+          overdriveMultiplierRef.current = 1;
+          setOverdriveScore(overdriveScoreRef.current);
+          setOverdriveCombo(0);
+          setOverdriveMultiplier(1);
+          overdriveEventRef.current = null;
+          setOverdriveEvent(null);
+        }
+      }
 
       typedRef.current = limited;
       setTyped(limited);
@@ -453,6 +570,20 @@ export default function TypingPage() {
         return;
       }
 
+      if (presetRef.current.kind === "overdrive") {
+        const activeEvent = overdriveEventRef.current;
+
+        if (activeEvent && activeEvent.until <= Date.now()) {
+          overdriveEventRef.current = null;
+          setOverdriveEvent(null);
+        }
+
+        if (nextElapsed >= OVERDRIVE_DURATION) {
+          finishTest(typedRef.current, startedAt);
+        }
+        return;
+      }
+
       if (
         presetRef.current.kind === "time" &&
         nextElapsed >=
@@ -572,6 +703,14 @@ export default function TypingPage() {
       setStartedAt(null);
       setErrors(0);
       setEscapeGap(ESCAPE_INITIAL_GAP);
+      overdriveScoreRef.current = 0;
+      overdriveComboRef.current = 0;
+      overdriveMultiplierRef.current = 1;
+      overdriveEventRef.current = null;
+      setOverdriveScore(0);
+      setOverdriveCombo(0);
+      setOverdriveMultiplier(1);
+      setOverdriveEvent(null);
 
       const currentStreak = getDailyStreak();
 
@@ -729,11 +868,11 @@ export default function TypingPage() {
     : 100;
 
   const progress =
-    preset.kind === "time"
+    preset.kind === "time" || preset.kind === "overdrive"
       ? Math.min(
           100,
           (elapsed /
-            (preset.value ?? 60)) *
+            (preset.kind === "overdrive" ? OVERDRIVE_DURATION : (preset.value ?? 60))) *
             100,
         )
       : Math.min(
@@ -842,6 +981,15 @@ export default function TypingPage() {
                 />
               )}
 
+              {preset.kind === "overdrive" && (
+                <OverdriveHUD
+                  score={overdriveScore}
+                  combo={overdriveCombo}
+                  multiplier={overdriveMultiplier}
+                  event={overdriveEvent}
+                />
+              )}
+
               <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
                 <span className="font-mono text-xs uppercase tracking-[0.18em] text-muted">
                   {preset.label} ·{" "}
@@ -856,7 +1004,9 @@ export default function TypingPage() {
                       )}s left`
                     : preset.kind === "escape"
                       ? `${Math.max(0, Math.round(escapeGap))}m ahead`
-                      : `${typed.length} / ${passage.length} characters`}
+                      : preset.kind === "overdrive"
+                        ? `${Math.max(0, OVERDRIVE_DURATION - Math.floor(elapsed))}s · ${overdriveScore} pts`
+                        : `${typed.length} / ${passage.length} characters`}
                 </span>
 
                 <span className="font-mono text-xs uppercase tracking-[0.18em] text-muted">
@@ -869,7 +1019,13 @@ export default function TypingPage() {
                 className="mb-10 h-[3px] w-full overflow-hidden bg-border/70"
               >
                 <div
-                  className={preset.kind === "escape" ? "escape-progress-fill h-full" : "theme-accent-fill h-full"}
+                  className={
+                    preset.kind === "escape"
+                      ? "escape-progress-fill h-full"
+                      : preset.kind === "overdrive"
+                        ? "overdrive-progress-fill h-full"
+                        : "theme-accent-fill h-full"
+                  }
                   style={{
                     width: `${preset.kind === "escape" ? Math.min(100, Math.max(4, escapeGap)) : progress}%`,
                   }}
@@ -925,6 +1081,8 @@ export default function TypingPage() {
                   ? "Daily passage · same challenge for everyone today"
                   : preset.kind === "escape"
                     ? "Keep typing · if you slow down, the scorpion gets closer"
+                    : preset.kind === "overdrive"
+                    ? "Build your combo · events change the rules · survive 60 seconds"
                     : "Start typing to begin · Tab or Esc to restart"}
               </p>
 
@@ -1011,6 +1169,50 @@ function EscapeChase({
   );
 }
 
+function OverdriveHUD({
+  score,
+  combo,
+  multiplier,
+  event,
+}: {
+  score: number;
+  combo: number;
+  multiplier: number;
+  event: OverdriveEvent | null;
+}) {
+  return (
+    <div className="overdrive-hud">
+      <div className="overdrive-header">
+        <div>
+          <p className="overdrive-kicker">Overdrive</p>
+          <p className="overdrive-status">
+            {event ? overdriveEventLabel(event) : combo >= 25 ? "KEEP THE COMBO ALIVE." : "BUILD YOUR COMBO."}
+          </p>
+        </div>
+        <div className="overdrive-score">
+          <span>Score</span>
+          <strong>{score}</strong>
+        </div>
+      </div>
+
+      <div className="overdrive-stats">
+        <div>
+          <span>Combo</span>
+          <strong>{combo}x</strong>
+        </div>
+        <div>
+          <span>Multiplier</span>
+          <strong>{multiplier.toFixed(1)}x</strong>
+        </div>
+        <div>
+          <span>Next boost</span>
+          <strong>{OVERDRIVE_COMBO_STEP - (combo % OVERDRIVE_COMBO_STEP)}</strong>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Stat({
   label,
   value,
@@ -1049,11 +1251,13 @@ function Result({
       <h2 className="mt-5 font-display text-3xl leading-relaxed sm:text-4xl">
         {result.escapeCaught
           ? "The scorpion caught you."
-          : result.newBest
-            ? "New personal best."
-            : result.escapeCaught === false
-              ? "You escaped."
-              : "Well typed."}
+          : result.overdriveEvent
+            ? "Overdrive complete."
+            : result.newBest
+              ? "New personal best."
+              : result.escapeCaught === false
+                ? "You escaped."
+                : "Well typed."}
       </h2>
 
       <div className="mt-10 grid grid-cols-2 border-y border-line sm:grid-cols-4">
@@ -1077,6 +1281,23 @@ function Result({
           </div>
         ))}
       </div>
+
+      {result.score !== undefined && (
+        <div className="mt-7 grid grid-cols-3 border-y border-line">
+          <div className="px-4 py-5">
+            <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted">Score</p>
+            <p className="mt-2 text-2xl font-semibold">{result.score}</p>
+          </div>
+          <div className="border-l border-line px-4 py-5">
+            <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted">Final combo</p>
+            <p className="mt-2 text-2xl font-semibold">{result.combo}x</p>
+          </div>
+          <div className="border-l border-line px-4 py-5">
+            <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted">Multiplier</p>
+            <p className="mt-2 text-2xl font-semibold">{result.multiplier}x</p>
+          </div>
+        </div>
+      )}
 
       <div className="mt-7 flex flex-wrap items-center justify-center gap-3 text-sm tracking-[0.025em] text-secondary">
         <span>
