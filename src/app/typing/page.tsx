@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, memo } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { RotateCcw } from "lucide-react";
 import {
   getDailyStreak,
@@ -21,6 +21,7 @@ import {
 } from "@/lib/typing";
 
 type Phase = "name" | "running" | "finished";
+
 type Result = {
   wpm: number;
   accuracy: number;
@@ -31,15 +32,6 @@ type Result = {
   streak: number;
 };
 
-/*
- * Performance notes:
- * - The typing timer no longer depends on `typed`, so every keystroke does
- *   NOT tear down/recreate an interval.
- * - The passage is rendered through memoized character cells.
- * - Character CSS transitions are disabled; a typing game should react
- *   immediately to every keystroke.
- * - The hidden textarea is automatically refocused whenever the test is active.
- */
 const VISIBLE_WORDS = 28;
 
 type VisibleRange = {
@@ -48,7 +40,26 @@ type VisibleRange = {
   nextStart: number;
 };
 
-function getWordRanges(text: string): Array<{ start: number; end: number }> {
+function getDefaultPreset(): TestPreset {
+  return (
+    TEST_PRESETS[2] ??
+    TEST_PRESETS[0] ??
+    ({
+      id: "default",
+      label: "Typing Test",
+      kind: "words",
+      value: 50,
+    } as TestPreset)
+  );
+}
+
+function getDefaultPassage(): string {
+  return PASSAGES[0] ?? "";
+}
+
+function getWordRanges(
+  text: string,
+): Array<{ start: number; end: number }> {
   const ranges: Array<{ start: number; end: number }> = [];
   const regex = /\S+/g;
   let match: RegExpExecArray | null;
@@ -73,18 +84,32 @@ function getVisibleRange(
   }
 
   let chunkIndex = 0;
+
   for (let i = 0; i < wordRanges.length; i += 1) {
-    if (wordRanges[i].start >= start) {
+    const range = wordRanges[i];
+
+    if (!range) continue;
+
+    if (range.start >= start) {
       chunkIndex = i;
       break;
     }
+
     chunkIndex = i;
   }
 
-  const endWord = Math.min(chunkIndex + VISIBLE_WORDS, wordRanges.length);
+  const endWord = Math.min(
+    chunkIndex + VISIBLE_WORDS,
+    wordRanges.length,
+  );
+
   const last = wordRanges[endWord - 1];
-  const end = last ? last.end : text.length;
-  const nextStart = endWord < wordRanges.length ? wordRanges[endWord].start : end;
+  const end = last?.end ?? text.length;
+
+  const nextRange =
+    endWord < wordRanges.length ? wordRanges[endWord] : undefined;
+
+  const nextStart = nextRange?.start ?? end;
 
   return {
     start: wordRanges[chunkIndex]?.start ?? 0,
@@ -93,12 +118,16 @@ function getVisibleRange(
   };
 }
 
-function countErrors(value: string, passage: string) {
+function countErrors(value: string, passage: string): number {
   let count = 0;
   const length = Math.min(value.length, passage.length);
+
   for (let i = 0; i < length; i += 1) {
-    if (value.charCodeAt(i) !== passage.charCodeAt(i)) count += 1;
+    if (value.charCodeAt(i) !== passage.charCodeAt(i)) {
+      count += 1;
+    }
   }
+
   return count;
 }
 
@@ -139,7 +168,9 @@ const TypingPassage = memo(function TypingPassage({
       {chars.map((char, localIndex) => {
         const index = start + localIndex;
         const isTyped = index < typed.length;
-        const isWrong = isTyped && typed.charCodeAt(index) !== char.charCodeAt(0);
+        const isWrong =
+          isTyped &&
+          typed.charCodeAt(index) !== char.charCodeAt(0);
         const isCurrent = index === typed.length;
 
         return (
@@ -163,16 +194,20 @@ const TypingPassage = memo(function TypingPassage({
 });
 
 export default function TypingPage() {
+  const defaultPreset = getDefaultPreset();
+  const defaultPassage = getDefaultPassage();
+
   const [name, setName] = useState("");
   const [phase, setPhase] = useState<Phase>("name");
-  const [preset, setPreset] = useState<TestPreset>(TEST_PRESETS[2]);
-  const [passage, setPassage] = useState(PASSAGES[0]);
+  const [preset, setPreset] = useState<TestPreset>(defaultPreset);
+  const [passage, setPassage] = useState(defaultPassage);
   const [typed, setTyped] = useState("");
   const [viewportStart, setViewportStart] = useState(0);
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const [errors, setErrors] = useState(0);
   const [streak, setStreak] = useState(0);
+
   const [finished, setFinished] = useState<Result>({
     wpm: 0,
     accuracy: 100,
@@ -187,8 +222,8 @@ export default function TypingPage() {
   const typedRef = useRef("");
   const startedAtRef = useRef<number | null>(null);
   const nameRef = useRef("");
-  const passageRef = useRef(passage);
-  const presetRef = useRef(preset);
+  const passageRef = useRef<string>(defaultPassage);
+  const presetRef = useRef<TestPreset>(defaultPreset);
   const viewportStartRef = useRef(0);
   const wordRangesRef = useRef<Array<{ start: number; end: number }>>([]);
 
@@ -206,33 +241,38 @@ export default function TypingPage() {
       const currentPreset = presetRef.current;
 
       const mistakes = countErrors(value, currentPassage);
+
       const accuracy = Math.max(
         0,
         Math.round(
-          ((value.length - mistakes) / Math.max(value.length, 1)) * 100,
+          ((value.length - mistakes) /
+            Math.max(value.length, 1)) *
+            100,
         ),
       );
+
       const wpm = Math.max(
         0,
         Math.round((value.length / 5) / (duration / 60)),
       );
+
       const previousBest = getPlayerStats(currentName).bestWpm;
       const newBest = wpm > previousBest;
-      const streak = markDailyStreak();
+      const currentStreak = markDailyStreak();
 
-      const result = {
+      const result: Result = {
         wpm,
         accuracy,
         errors: mistakes,
         duration: Math.round(duration),
         personalBest: Math.max(previousBest, wpm),
         newBest,
-        streak,
+        streak: currentStreak,
       };
 
       setElapsed(duration);
       setErrors(mistakes);
-      setStreak(streak);
+      setStreak(currentStreak);
       setFinished(result);
 
       saveRecord({
@@ -266,23 +306,26 @@ export default function TypingPage() {
       const currentPassage = passageRef.current;
       const currentPreset = presetRef.current;
       const previous = typedRef.current;
+
       const limited = value.slice(0, currentPassage.length);
 
       if (!startedAtRef.current && limited.length > 0) {
         const now = Date.now();
+
         startedAtRef.current = now;
         setStartedAt(now);
         setElapsed(0);
       }
 
       const nextErrors = countErrors(limited, currentPassage);
+
       typedRef.current = limited;
       setTyped(limited);
       setErrors(nextErrors);
 
-      // Word-based tests finish when the final required character is typed.
       if (
-        (currentPreset.kind === "words" || currentPreset.kind === "daily") &&
+        (currentPreset.kind === "words" ||
+          currentPreset.kind === "daily") &&
         limited.length >= currentPassage.length
       ) {
         finishTest(
@@ -298,33 +341,42 @@ export default function TypingPage() {
         wordRangesRef.current,
       );
 
-      // Only advance after a CORRECT final character of the visible window.
-      // If the user mistypes that final character, remain on the current
-      // window so the mistake is visible and can be corrected with Backspace.
       const lastVisibleIndex = range.end - 1;
+
       const addedOneCharacter =
         limited.length === previous.length + 1;
 
       const reachedChunkEnd =
         addedOneCharacter &&
         limited.length === range.end &&
-        limited[lastVisibleIndex] === currentPassage[lastVisibleIndex];
+        lastVisibleIndex >= 0 &&
+        limited[lastVisibleIndex] ===
+          currentPassage[lastVisibleIndex];
 
-      if (reachedChunkEnd && range.nextStart > range.start) {
-        // The final visible character is the last LETTER of the chunk.
-        // Consume the structural whitespace between chunks internally so the
-        // next chunk appears immediately and its first character becomes the
-        // true current character. The user never has to guess about pressing
-        // an invisible Space key.
-        const separator = currentPassage.slice(range.end, range.nextStart);
+      if (
+        reachedChunkEnd &&
+        range.nextStart > range.start
+      ) {
+        const separator = currentPassage.slice(
+          range.end,
+          range.nextStart,
+        );
+
         const advancedValue = limited + separator;
 
         typedRef.current = advancedValue;
+
         if (inputRef.current) {
           inputRef.current.value = advancedValue;
         }
+
         setTyped(advancedValue);
-        setErrors(countErrors(advancedValue, currentPassage));
+        setErrors(
+          countErrors(
+            advancedValue,
+            currentPassage,
+          ),
+        );
 
         viewportStartRef.current = range.nextStart;
         setViewportStart(range.nextStart);
@@ -333,165 +385,252 @@ export default function TypingPage() {
     [finishTest, phase],
   );
 
-  // Load saved identity and immediately focus the typing input.
   useEffect(() => {
     const saved = getPlayerName();
+
     if (!saved) return;
 
-    const nextPreset = TEST_PRESETS[2];
-    const nextPassage = longPassage();
+    const nextPreset = getDefaultPreset();
+    const nextPassage = longPassage() || getDefaultPassage();
 
     setName(saved);
     nameRef.current = saved;
+
     setPreset(nextPreset);
     presetRef.current = nextPreset;
+
     setPassage(nextPassage);
     passageRef.current = nextPassage;
+
     wordRangesRef.current = getWordRanges(nextPassage);
+
     setViewportStart(0);
     viewportStartRef.current = 0;
+
     setPhase("running");
 
-    requestAnimationFrame(() => inputRef.current?.focus({ preventScroll: true }));
+    requestAnimationFrame(() => {
+      inputRef.current?.focus({ preventScroll: true });
+    });
   }, []);
 
-  // The timer is deliberately independent of `typed`.
-  // Recreating a timer on every keystroke was unnecessary work and contributed
-  // to the sluggish feeling on longer tests.
   useEffect(() => {
     if (phase !== "running" || !startedAt) return;
 
     const timer = window.setInterval(() => {
-      const nextElapsed = (Date.now() - startedAt) / 1000;
+      const nextElapsed =
+        (Date.now() - startedAt) / 1000;
+
       setElapsed(nextElapsed);
 
       if (
         presetRef.current.kind === "time" &&
-        nextElapsed >= (presetRef.current.value ?? 60)
+        nextElapsed >=
+          (presetRef.current.value ?? 60)
       ) {
-        finishTest(typedRef.current, startedAt);
+        finishTest(
+          typedRef.current,
+          startedAt,
+        );
       }
     }, 250);
 
     return () => window.clearInterval(timer);
   }, [finishTest, phase, startedAt]);
 
-  // Keep the game keyboard-ready. If focus is lost to the page, restore it
-  // while the test is running. This also fixes landing on /typing and typing
-  // immediately without clicking the passage.
   useEffect(() => {
     if (phase !== "running") return;
 
     const keepFocused = () => {
-      if (document.activeElement !== inputRef.current) {
+      if (
+        document.activeElement !== inputRef.current
+      ) {
         focusInput();
       }
     };
 
-    const onPointerDown = (event: PointerEvent) => {
-      const target = event.target as HTMLElement | null;
-      if (target?.closest("button, a, input, select")) return;
+    const onPointerDown = (
+      event: PointerEvent,
+    ) => {
+      const target =
+        event.target as HTMLElement | null;
+
+      if (
+        target?.closest(
+          "button, a, input, select",
+        )
+      ) {
+        return;
+      }
+
       focusInput();
     };
 
-    window.addEventListener("pointerdown", onPointerDown);
-    window.addEventListener("focus", keepFocused);
+    window.addEventListener(
+      "pointerdown",
+      onPointerDown,
+    );
+
+    window.addEventListener(
+      "focus",
+      keepFocused,
+    );
 
     return () => {
-      window.removeEventListener("pointerdown", onPointerDown);
-      window.removeEventListener("focus", keepFocused);
+      window.removeEventListener(
+        "pointerdown",
+        onPointerDown,
+      );
+
+      window.removeEventListener(
+        "focus",
+        keepFocused,
+      );
     };
   }, [focusInput, phase]);
 
-  function preparePassage(nextPreset: TestPreset) {
-    if (nextPreset.kind === "daily") return dailyPassage();
-    if (nextPreset.kind === "words") return passageForWords(nextPreset.value ?? 50);
-    return longPassage();
-  }
+  const preparePassage = useCallback(
+    (nextPreset: TestPreset): string => {
+      if (nextPreset.kind === "daily") {
+        return dailyPassage() || getDefaultPassage();
+      }
 
-  function beginTest(nextPreset: TestPreset, playerName = nameRef.current || name) {
-    const clean = playerName.trim().slice(0, 24);
-    if (!clean) return;
+      if (nextPreset.kind === "words") {
+        return (
+          passageForWords(nextPreset.value ?? 50) ||
+          getDefaultPassage()
+        );
+      }
 
-    savePlayerName(clean);
-
-    const nextPassage = preparePassage(nextPreset);
-
-    nameRef.current = clean;
-    presetRef.current = nextPreset;
-    passageRef.current = nextPassage;
-    wordRangesRef.current = getWordRanges(nextPassage);
-    typedRef.current = "";
-    startedAtRef.current = null;
-    viewportStartRef.current = 0;
-
-    setName(clean);
-    setPreset(nextPreset);
-    setPassage(nextPassage);
-    setViewportStart(0);
-    setTyped("");
-    setElapsed(0);
-    setStartedAt(null);
-    setErrors(0);
-    setStreak(getDailyStreak());
-    setFinished({
-      wpm: 0,
-      accuracy: 100,
-      errors: 0,
-      duration: 0,
-      personalBest: getPlayerStats(clean).bestWpm,
-      newBest: false,
-      streak: getDailyStreak(),
-    });
-    setPhase("running");
-
-    // The input is intentionally uncontrolled for keystroke performance.
-    // Reset its native value directly instead of making React reconcile the
-    // textarea on every character.
-    if (inputRef.current) {
-      inputRef.current.value = "";
-    }
-    focusInput();
-  }
-
-  const reset = useCallback(
-    () => beginTest(presetRef.current),
+      return longPassage() || getDefaultPassage();
+    },
     [],
   );
+
+  const beginTest = useCallback(
+    (
+      nextPreset: TestPreset,
+      playerName = nameRef.current || name,
+    ) => {
+      const clean = playerName
+        .trim()
+        .slice(0, 24);
+
+      if (!clean) return;
+
+      savePlayerName(clean);
+
+      const nextPassage = preparePassage(nextPreset);
+
+      nameRef.current = clean;
+      presetRef.current = nextPreset;
+      passageRef.current = nextPassage;
+
+      wordRangesRef.current =
+        getWordRanges(nextPassage);
+
+      typedRef.current = "";
+      startedAtRef.current = null;
+      viewportStartRef.current = 0;
+
+      setName(clean);
+      setPreset(nextPreset);
+      setPassage(nextPassage);
+      setViewportStart(0);
+      setTyped("");
+      setElapsed(0);
+      setStartedAt(null);
+      setErrors(0);
+
+      const currentStreak = getDailyStreak();
+
+      setStreak(currentStreak);
+
+      setFinished({
+        wpm: 0,
+        accuracy: 100,
+        errors: 0,
+        duration: 0,
+        personalBest:
+          getPlayerStats(clean).bestWpm,
+        newBest: false,
+        streak: currentStreak,
+      });
+
+      setPhase("running");
+
+      if (inputRef.current) {
+        inputRef.current.value = "";
+      }
+
+      focusInput();
+    },
+    [focusInput, name, preparePassage],
+  );
+
+  const reset = useCallback(() => {
+    beginTest(presetRef.current);
+  }, [beginTest]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (phase === "name") return;
 
-      if (event.key === "Tab" || event.key === "Escape") {
+      if (
+        event.key === "Tab" ||
+        event.key === "Escape"
+      ) {
         event.preventDefault();
         reset();
         return;
       }
 
-      // If the browser has not focused the hidden input yet, do not lose the
-      // user's first keystroke. This makes /typing behave like a real typing
-      // game: arrive, look at the passage, and start typing immediately.
       const isPrintable =
         event.key.length === 1 &&
         !event.ctrlKey &&
         !event.metaKey &&
         !event.altKey;
 
-      if (isPrintable && document.activeElement !== inputRef.current) {
+      if (
+        isPrintable &&
+        document.activeElement !==
+          inputRef.current
+      ) {
         event.preventDefault();
+
         focusInput();
-        const nextValue = `${inputRef.current?.value ?? typedRef.current}${event.key}`;
+
+        const nextValue = `${
+          inputRef.current?.value ??
+          typedRef.current
+        }${event.key}`;
+
         handleChange(nextValue);
+
         if (inputRef.current) {
           inputRef.current.value = nextValue;
         }
       }
     };
 
-    window.addEventListener("keydown", onKey, true);
-    return () => window.removeEventListener("keydown", onKey, true);
-  }, [focusInput, handleChange, phase, reset]);
+    window.addEventListener(
+      "keydown",
+      onKey,
+      true,
+    );
+
+    return () =>
+      window.removeEventListener(
+        "keydown",
+        onKey,
+        true,
+      );
+  }, [
+    focusInput,
+    handleChange,
+    phase,
+    reset,
+  ]);
 
   if (phase === "name") {
     return (
@@ -500,28 +639,34 @@ export default function TypingPage() {
           <p className="font-mono text-xs uppercase tracking-[0.22em] text-muted">
             New typist
           </p>
+
           <h1 className="mt-5 font-display text-3xl leading-relaxed sm:text-4xl">
             What should we call you?
           </h1>
+
           <p className="mx-auto mt-5 max-w-md text-base leading-7 tracking-[0.015em] text-secondary">
-            Your name is saved locally and used as your identifier on this
-            device.
+            Your name is saved locally and used as
+            your identifier on this device.
           </p>
+
           <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              beginTest(TEST_PRESETS[2]);
+            onSubmit={(event) => {
+              event.preventDefault();
+              beginTest(getDefaultPreset());
             }}
             className="mx-auto mt-9 flex max-w-md flex-col gap-3 sm:flex-row"
           >
             <input
               autoFocus
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(event) =>
+                setName(event.target.value)
+              }
               maxLength={24}
               placeholder="Enter your name"
               className="theme-focus min-h-13 flex-1 rounded-[3px] border border-border-strong bg-surface-elevated px-4 text-base tracking-[0.02em] text-primary outline-none transition"
             />
+
             <button
               type="submit"
               className="theme-accent-button min-h-13 border px-6 py-3 text-sm font-semibold tracking-[0.08em] transition hover:-translate-y-1"
@@ -535,27 +680,52 @@ export default function TypingPage() {
   }
 
   const liveWpm = startedAt
-    ? Math.round((typed.length / 5) / Math.max(elapsed / 60, 0.01))
+    ? Math.round(
+        (typed.length / 5) /
+          Math.max(elapsed / 60, 0.01),
+      )
     : 0;
 
   const liveAccuracy = typed.length
-    ? Math.max(0, Math.round(((typed.length - errors) / typed.length) * 100))
+    ? Math.max(
+        0,
+        Math.round(
+          ((typed.length - errors) /
+            typed.length) *
+            100,
+        ),
+      )
     : 100;
 
   const progress =
     preset.kind === "time"
-      ? Math.min(100, (elapsed / (preset.value ?? 60)) * 100)
-      : Math.min(100, (typed.length / passage.length) * 100);
+      ? Math.min(
+          100,
+          (elapsed /
+            (preset.value ?? 60)) *
+            100,
+        )
+      : Math.min(
+          100,
+          (typed.length /
+            Math.max(passage.length, 1)) *
+            100,
+        );
 
   const visibleRange = getVisibleRange(
     passage,
     viewportStart,
     wordRangesRef.current,
   );
-  const visibleText = passage.slice(visibleRange.start, visibleRange.end);
+
+  const visibleText = passage.slice(
+    visibleRange.start,
+    visibleRange.end,
+  );
 
   const isWrongAtBoundary =
     typed.length >= visibleRange.end &&
+    visibleRange.end > 0 &&
     typed.charCodeAt(visibleRange.end - 1) !==
       passage.charCodeAt(visibleRange.end - 1);
 
@@ -567,6 +737,7 @@ export default function TypingPage() {
             <p className="font-mono text-xs uppercase tracking-[0.22em] text-muted">
               Typing / {name}
             </p>
+
             <h1 className="mt-3 text-4xl font-semibold tracking-[0.01em]">
               Focus.
             </h1>
@@ -574,9 +745,18 @@ export default function TypingPage() {
 
           <div className="grid grid-cols-4 border border-line">
             <Stat label="WPM" value={liveWpm || "—"} />
-            <Stat label="Accuracy" value={`${liveAccuracy}%`} />
-            <Stat label="Time" value={`${Math.floor(elapsed)}s`} />
-            <Stat label="Streak" value={streak || "—"} />
+            <Stat
+              label="Accuracy"
+              value={`${liveAccuracy}%`}
+            />
+            <Stat
+              label="Time"
+              value={`${Math.floor(elapsed)}s`}
+            />
+            <Stat
+              label="Streak"
+              value={streak || "—"}
+            />
           </div>
         </div>
 
@@ -589,7 +769,9 @@ export default function TypingPage() {
               <button
                 key={option.id}
                 type="button"
-                onClick={() => beginTest(option)}
+                onClick={() =>
+                  beginTest(option)
+                }
                 className={`rounded-full border px-4 py-2 text-sm tracking-[0.025em] transition-all duration-200 ${
                   preset.id === option.id
                     ? "theme-preset-active"
@@ -603,7 +785,11 @@ export default function TypingPage() {
         )}
 
         {phase === "finished" ? (
-          <Result name={name} result={finished} onAgain={reset} />
+          <Result
+            name={name}
+            result={finished}
+            onAgain={reset}
+          />
         ) : (
           <>
             <div className="mt-7 rounded-[4px] border border-border-strong bg-surface-elevated/75 p-6 shadow-[0_18px_45px_rgba(25,24,20,0.06)] sm:p-10 lg:p-14">
@@ -613,10 +799,15 @@ export default function TypingPage() {
                   {preset.kind === "time"
                     ? `${Math.max(
                         0,
-                        Math.ceil((preset.value ?? 60) - elapsed),
+                        Math.ceil(
+                          (preset.value ??
+                            60) -
+                            elapsed,
+                        ),
                       )}s left`
                     : `${typed.length} / ${passage.length} characters`}
                 </span>
+
                 <span className="font-mono text-xs uppercase tracking-[0.18em] text-muted">
                   {Math.round(progress)}% complete
                 </span>
@@ -628,12 +819,16 @@ export default function TypingPage() {
               >
                 <div
                   className="theme-accent-fill h-full"
-                  style={{ width: `${progress}%` }}
+                  style={{
+                    width: `${progress}%`,
+                  }}
                 />
               </div>
 
               <div
-                onPointerDown={() => focusInput()}
+                onPointerDown={() =>
+                  focusInput()
+                }
                 aria-hidden="true"
                 className="typing-passage typing-passage-viewport cursor-text select-none font-sans text-[clamp(1.45rem,2.8vw,2.45rem)] leading-[1.55] tracking-[0.035em]"
               >
@@ -642,6 +837,7 @@ export default function TypingPage() {
                   start={visibleRange.start}
                   typed={typed}
                 />
+
                 {isWrongAtBoundary && (
                   <span
                     aria-hidden="true"
@@ -653,8 +849,15 @@ export default function TypingPage() {
               <textarea
                 ref={inputRef}
                 defaultValue=""
-                onInput={(e) => handleChange(e.currentTarget.value)}
-                onPaste={(e) => e.preventDefault()}
+                onInput={(event) =>
+                  handleChange(
+                    event.currentTarget
+                      .value,
+                  )
+                }
+                onPaste={(event) =>
+                  event.preventDefault()
+                }
                 spellCheck={false}
                 autoCapitalize="off"
                 autoCorrect="off"
@@ -671,6 +874,7 @@ export default function TypingPage() {
                   ? "Daily passage · same challenge for everyone today"
                   : "Start typing to begin · Tab or Esc to restart"}
               </p>
+
               <button
                 onClick={reset}
                 className="group inline-flex items-center gap-2 text-sm font-semibold tracking-[0.04em] text-secondary transition hover:text-primary"
@@ -701,7 +905,10 @@ function Stat({
       <p className="font-mono text-[9px] uppercase tracking-[0.16em] text-muted">
         {label}
       </p>
-      <p className="mt-1 font-sans text-base text-primary">{value}</p>
+
+      <p className="mt-1 font-sans text-base text-primary">
+        {value}
+      </p>
     </div>
   );
 }
@@ -720,9 +927,13 @@ function Result({
       <p className="font-mono text-xs uppercase tracking-[0.22em] text-muted">
         Test complete / {name}
       </p>
+
       <h2 className="mt-5 font-display text-3xl leading-relaxed sm:text-4xl">
-        {result.newBest ? "New personal best." : "Well typed."}
+        {result.newBest
+          ? "New personal best."
+          : "Well typed."}
       </h2>
+
       <div className="mt-10 grid grid-cols-2 border-y border-line sm:grid-cols-4">
         {[
           ["WPM", result.wpm],
@@ -737,23 +948,32 @@ function Result({
             <p className="font-mono text-xs uppercase tracking-[0.16em] text-muted">
               {label}
             </p>
+
             <p className="mt-3 text-3xl font-semibold tracking-[0.02em]">
               {value}
             </p>
           </div>
         ))}
       </div>
+
       <div className="mt-7 flex flex-wrap items-center justify-center gap-3 text-sm tracking-[0.025em] text-secondary">
         <span>
           Personal best:{" "}
-          <strong className="text-primary">{result.personalBest} WPM</strong>
+          <strong className="text-primary">
+            {result.personalBest} WPM
+          </strong>
         </span>
+
         <span className="text-muted">·</span>
+
         <span>
           Daily streak:{" "}
-          <strong className="text-primary">{result.streak}</strong>
+          <strong className="text-primary">
+            {result.streak}
+          </strong>
         </span>
       </div>
+
       <div className="mt-9 flex justify-center">
         <button
           type="button"
