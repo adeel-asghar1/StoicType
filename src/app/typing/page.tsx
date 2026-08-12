@@ -35,7 +35,7 @@ type Result = {
 
 const VISIBLE_WORDS = 28;
 const ESCAPE_INITIAL_GAP = 78;
-const ESCAPE_PRESSURE_CPS = 4.2;
+const ESCAPE_PRESSURE_CPS = 5.5;
 
 type VisibleRange = {
   start: number;
