@@ -35,6 +35,7 @@ type Result = {
   combo?: number;
   multiplier?: number;
   overdriveEvent?: string;
+  mirrorScore?: number;
 };
 
 const VISIBLE_WORDS = 28;
@@ -43,7 +44,11 @@ const ESCAPE_PRESSURE_CPS = 5.5;
 const OVERDRIVE_DURATION = 60;
 const OVERDRIVE_COMBO_STEP = 25;
 const OVERDRIVE_EVENT_DURATION = 6000;
+const MIRROR_DURATION = 60;
+const MIRROR_EVENT_INTERVAL = 7500;
+const MIRROR_EVENT_DURATION = 2600;
 type OverdriveEvent = "blood-rush" | "void" | "precision" | "sudden-death" | "overdrive";
+type MirrorEvent = "mirror" | "blackout" | "glitch" | "echo" | "decoy";
 
 type VisibleRange = {
   start: number;
@@ -179,6 +184,33 @@ function pickOverdriveEvent(): OverdriveEvent {
   return events[Math.floor(Math.random() * events.length)] ?? "overdrive";
 }
 
+function pickMirrorEvent(): MirrorEvent {
+  const events: MirrorEvent[] = [
+    "mirror",
+    "blackout",
+    "glitch",
+    "echo",
+    "decoy",
+  ];
+
+  return events[Math.floor(Math.random() * events.length)] ?? "mirror";
+}
+
+function mirrorEventLabel(event: MirrorEvent): string {
+  switch (event) {
+    case "mirror":
+      return "MIRROR · REALITY FLIPPED";
+    case "blackout":
+      return "BLACKOUT · TRUST YOUR RHYTHM";
+    case "glitch":
+      return "GLITCH · HOLD YOUR FOCUS";
+    case "echo":
+      return "ECHO · IGNORE THE GHOST";
+    case "decoy":
+      return "DECOY · THE TEXT LIES";
+  }
+}
+
 function overdriveEventLabel(event: OverdriveEvent): string {
   switch (event) {
     case "blood-rush":
@@ -254,6 +286,8 @@ export default function TypingPage() {
   const [overdriveCombo, setOverdriveCombo] = useState(0);
   const [overdriveMultiplier, setOverdriveMultiplier] = useState(1);
   const [overdriveEvent, setOverdriveEvent] = useState<OverdriveEvent | null>(null);
+  const [mirrorEvent, setMirrorEvent] = useState<MirrorEvent | null>(null);
+  const [mirrorScore, setMirrorScore] = useState(0);
 
   const [finished, setFinished] = useState<Result>({
     wpm: 0,
@@ -277,6 +311,9 @@ export default function TypingPage() {
   const overdriveComboRef = useRef(0);
   const overdriveMultiplierRef = useRef(1);
   const overdriveEventRef = useRef<{ kind: OverdriveEvent; until: number; precisionLeft: number } | null>(null);
+  const mirrorEventRef = useRef<{ kind: MirrorEvent; until: number } | null>(null);
+  const mirrorNextEventAtRef = useRef(0);
+  const mirrorScoreRef = useRef(0);
 
   const focusInput = useCallback(() => {
     requestAnimationFrame(() => {
@@ -327,6 +364,7 @@ export default function TypingPage() {
           currentPreset.kind === "overdrive" && overdriveEventRef.current
             ? overdriveEventLabel(overdriveEventRef.current.kind)
             : undefined,
+        mirrorScore: currentPreset.kind === "mirror" ? mirrorScoreRef.current : undefined,
       };
 
       setElapsed(duration);
@@ -377,6 +415,21 @@ export default function TypingPage() {
       }
 
       const nextErrors = countErrors(limited, currentPassage);
+
+      if (currentPreset.kind === "mirror" && limited.length > previous.length) {
+        const typedIndex = limited.length - 1;
+        const correct = limited[typedIndex] === currentPassage[typedIndex];
+
+        if (correct) {
+          const eventActive = mirrorEventRef.current && mirrorEventRef.current.until > Date.now();
+          const points = eventActive ? 20 : 10;
+          mirrorScoreRef.current += points;
+        } else {
+          mirrorScoreRef.current = Math.max(0, mirrorScoreRef.current - 15);
+        }
+
+        setMirrorScore(mirrorScoreRef.current);
+      }
 
       if (currentPreset.kind === "overdrive" && limited.length > previous.length) {
         const typedIndex = limited.length - 1;
@@ -579,6 +632,30 @@ export default function TypingPage() {
         }
 
         if (nextElapsed >= OVERDRIVE_DURATION) {
+          finishTest(typedRef.current, startedAt);
+        }
+        return;
+      }
+
+      if (presetRef.current.kind === "mirror") {
+        const now = Date.now();
+        const activeEvent = mirrorEventRef.current;
+
+        if (activeEvent && activeEvent.until <= now) {
+          mirrorEventRef.current = null;
+          setMirrorEvent(null);
+          mirrorNextEventAtRef.current = now + (nextElapsed >= 50 ? 3200 : MIRROR_EVENT_INTERVAL);
+        } else if (!activeEvent && mirrorNextEventAtRef.current <= now) {
+          const nextEvent = pickMirrorEvent();
+          mirrorEventRef.current = {
+            kind: nextEvent,
+            until: now + MIRROR_EVENT_DURATION,
+          };
+          setMirrorEvent(nextEvent);
+          mirrorNextEventAtRef.current = now + (nextElapsed >= 50 ? 3200 : MIRROR_EVENT_INTERVAL) + MIRROR_EVENT_DURATION;
+        }
+
+        if (nextElapsed >= MIRROR_DURATION) {
           finishTest(typedRef.current, startedAt);
         }
         return;
@@ -868,11 +945,11 @@ export default function TypingPage() {
     : 100;
 
   const progress =
-    preset.kind === "time" || preset.kind === "overdrive"
+    preset.kind === "time" || preset.kind === "overdrive" || preset.kind === "mirror"
       ? Math.min(
           100,
           (elapsed /
-            (preset.kind === "overdrive" ? OVERDRIVE_DURATION : (preset.value ?? 60))) *
+            (preset.kind === "overdrive" ? OVERDRIVE_DURATION : preset.kind === "mirror" ? MIRROR_DURATION : (preset.value ?? 60))) *
             100,
         )
       : Math.min(
@@ -990,6 +1067,15 @@ export default function TypingPage() {
                 />
               )}
 
+              {preset.kind === "mirror" && (
+                <MirrorHUD
+                  event={mirrorEvent}
+                  started={Boolean(startedAt)}
+                  elapsed={elapsed}
+                  score={mirrorScore}
+                />
+              )}
+
               <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
                 <span className="font-mono text-xs uppercase tracking-[0.18em] text-muted">
                   {preset.label} ·{" "}
@@ -1006,7 +1092,9 @@ export default function TypingPage() {
                       ? `${Math.max(0, Math.round(escapeGap))}m ahead`
                       : preset.kind === "overdrive"
                         ? `${Math.max(0, OVERDRIVE_DURATION - Math.floor(elapsed))}s · ${overdriveScore} pts`
-                        : `${typed.length} / ${passage.length} characters`}
+                        : preset.kind === "mirror"
+                          ? `${Math.max(0, MIRROR_DURATION - Math.floor(elapsed))}s · ${mirrorScore} pts`
+                          : `${typed.length} / ${passage.length} characters`}
                 </span>
 
                 <span className="font-mono text-xs uppercase tracking-[0.18em] text-muted">
@@ -1024,7 +1112,9 @@ export default function TypingPage() {
                       ? "escape-progress-fill h-full"
                       : preset.kind === "overdrive"
                         ? "overdrive-progress-fill h-full"
-                        : "theme-accent-fill h-full"
+                        : preset.kind === "mirror"
+                          ? "mirror-progress-fill h-full"
+                          : "theme-accent-fill h-full"
                   }
                   style={{
                     width: `${preset.kind === "escape" ? Math.min(100, Math.max(4, escapeGap)) : progress}%`,
@@ -1037,7 +1127,11 @@ export default function TypingPage() {
                   focusInput()
                 }
                 aria-hidden="true"
-                className="typing-passage typing-passage-viewport cursor-text select-none font-sans text-[clamp(1.45rem,2.8vw,2.45rem)] leading-[1.55] tracking-[0.035em]"
+                className={`typing-passage typing-passage-viewport cursor-text select-none font-sans text-[clamp(1.45rem,2.8vw,2.45rem)] leading-[1.55] tracking-[0.035em] ${
+                  preset.kind === "mirror" && mirrorEvent
+                    ? `mirror-event-${mirrorEvent}`
+                    : ""
+                }`}
               >
                 <TypingPassage
                   text={visibleText}
@@ -1073,18 +1167,26 @@ export default function TypingPage() {
                 aria-label="Typing input"
                 className="absolute left-[-9999px] h-px w-px opacity-0"
               />
+
+              {(preset.kind === "escape" || preset.kind === "overdrive" || preset.kind === "mirror") && (
+                <ModeDescription mode={preset.kind} />
+              )}
             </div>
 
             <div className="mt-5 flex flex-wrap items-center justify-between gap-4">
-              <p className="text-sm tracking-[0.025em] text-muted">
-                {preset.kind === "daily"
-                  ? "Daily passage · same challenge for everyone today"
-                  : preset.kind === "escape"
-                    ? "Keep typing · if you slow down, the scorpion gets closer"
-                    : preset.kind === "overdrive"
-                    ? "Build your combo · events change the rules · survive 60 seconds"
-                    : "Start typing to begin · Tab or Esc to restart"}
-              </p>
+              <div className="flex-1">
+                <p className="text-sm tracking-[0.025em] text-muted">
+                  {preset.kind === "daily"
+                    ? "Daily passage · same challenge for everyone today"
+                    : preset.kind === "escape"
+                      ? "Keep typing · if you slow down, the scorpion gets closer"
+                      : preset.kind === "overdrive"
+                        ? "Build your combo · events change the rules · survive 60 seconds"
+                        : preset.kind === "mirror"
+                          ? "Keep typing through visual disruptions · 60 seconds · every event tests your focus"
+                          : "Start typing to begin · Tab or Esc to restart"}
+                </p>
+              </div>
 
               <button
                 onClick={reset}
@@ -1209,6 +1311,65 @@ function OverdriveHUD({
           <strong>{OVERDRIVE_COMBO_STEP - (combo % OVERDRIVE_COMBO_STEP)}</strong>
         </div>
       </div>
+    </div>
+  );
+}
+
+function MirrorHUD({
+  event,
+  started,
+  elapsed,
+  score,
+}: {
+  event: MirrorEvent | null;
+  started: boolean;
+  elapsed: number;
+  score: number;
+}) {
+  const finalTen = elapsed >= 50;
+
+  return (
+    <div className={`mirror-hud ${event ? "mirror-hud-active" : ""} ${finalTen ? "mirror-hud-final" : ""}`}>
+      <div>
+        <p className="mirror-kicker">Mirror</p>
+        <p className="mirror-status">
+          {!started
+            ? "Stay ready. Reality will change."
+            : finalTen
+              ? `FINAL 10 · ${Math.max(0, 60 - Math.floor(elapsed))}s`
+              : event
+                ? mirrorEventLabel(event)
+                : "CALM IS PART OF THE CHALLENGE."}
+        </p>
+      </div>
+      <div className="mirror-score">
+        <span>Focus Score</span>
+        <strong>{score}</strong>
+      </div>
+    </div>
+  );
+}
+
+function ModeDescription({ mode }: { mode: "escape" | "overdrive" | "mirror" }) {
+  const content = {
+    escape: {
+      title: "How to escape",
+      text: "Type continuously to stay ahead. Your speed creates distance; slowing down and making mistakes lets the scorpion close in. Reach the end before it catches you.",
+    },
+    overdrive: {
+      title: "How Overdrive works",
+      text: "Build a combo with correct keystrokes to raise your multiplier and score. Random events temporarily change the rules, while mistakes can break your combo. Survive the full 60 seconds.",
+    },
+    mirror: {
+      title: "How Mirror works",
+      text: "Type normally for 60 seconds, but stay alert: the passage can flip, disappear, glitch, echo, or become deceptive for a few seconds. Your input always follows the original text. Keep your focus when the screen tries to distract you.",
+    },
+  }[mode];
+
+  return (
+    <div className="mode-description">
+      <p className="mode-description-title">{content.title}</p>
+      <p className="mode-description-text">{content.text}</p>
     </div>
   );
 }

@@ -28,7 +28,7 @@ export function HomeScreen() {
 
       <Reveal className="relative z-10 w-full max-w-5xl text-center">
         <p className="font-mono text-[10px] uppercase tracking-[0.34em] text-secondary">
-          StoicType <span className="text-muted">/ 01</span>
+          StoicType 
         </p>
 
         <div className="mx-auto mt-5 flex items-center justify-center gap-2">
