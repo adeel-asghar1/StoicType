@@ -84,7 +84,7 @@ export function Sidebar({ variant, onNavigate }: SidebarProps) {
           <span className="font-bold">With the assistance of :</span>
           
         <span>Faizan Kareem</span>
-         <span>Shifa Ahsan</span>
+         <span>Aleena Ahsan</span>
      
         <span> <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-muted">{APP_VERSION}</p></span>
        
