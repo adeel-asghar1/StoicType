@@ -1250,7 +1250,7 @@ function Result({
 
       <h2 className="mt-5 font-display text-3xl leading-relaxed sm:text-4xl">
         {result.escapeCaught
-          ? "The scorpion caught you."
+          ? "You got bitten by scorpion.."
           : result.overdriveEvent
             ? "Overdrive complete."
             : result.newBest
