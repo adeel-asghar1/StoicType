@@ -43,7 +43,7 @@ export function Sidebar({ variant, onNavigate }: SidebarProps) {
 
       <div className="relative mt-8 space-y-3 border-t border-line pt-5 px-2 text-small text-secondary">
         <a
-          href="https://github.com/adeelasghar12123-lang"
+          href="https://github.com/"
           target="_blank"
           rel="noreferrer"
           className="group flex items-center gap-2 rounded-md py-1 transition-all duration-300 hover:translate-x-1 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar"
