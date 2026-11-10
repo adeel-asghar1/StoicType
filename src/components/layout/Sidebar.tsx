@@ -74,24 +74,6 @@ export function Sidebar({ variant, onNavigate }: SidebarProps) {
        
       </div>
 
-      
-
-        <div className="relative mt-4 space-y-3 border-t border-line pt-5 px-2 text-small flex justify-center flex-col text-secondary">
-
-           <span className="font-bold">Developed by :</span>
-        <span> Adeel Asghar</span>
-
-          <span className="font-bold">With the assistance of :</span>
-          
-        <span>Faizan Kareem</span>
-         <span>Aleena Ahsan</span>
-     
-        <span> <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-muted">{APP_VERSION}</p></span>
-       
-      </div>
-
-
-    
     </motion.aside>
   );
 }
