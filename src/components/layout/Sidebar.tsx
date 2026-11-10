@@ -5,7 +5,6 @@ import { Github, Instagram, Linkedin } from "lucide-react";
 import { Logo } from "@/components/ui/Logo";
 import { NavLink } from "@/components/ui/NavLink";
 import { NAV_ITEMS } from "@/constants/navigation";
-import { APP_VERSION } from "@/constants/app";
 
 type SidebarProps = {
   variant: "desktop" | "mobile";
@@ -37,9 +36,6 @@ export function Sidebar({ variant, onNavigate }: SidebarProps) {
           <NavLink key={item.href} item={item} indicatorId={indicatorId} onNavigate={onNavigate} />
         ))}
       </nav>
-
-
-     
 
       <div className="relative mt-8 space-y-3 border-t border-line pt-5 px-2 text-small text-secondary">
         <a
